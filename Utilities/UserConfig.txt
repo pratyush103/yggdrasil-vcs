@@ -1,0 +1,3 @@
+[user]
+        name = Pratyush Landekar
+        email = pratyushlandekar103@gmail.com
