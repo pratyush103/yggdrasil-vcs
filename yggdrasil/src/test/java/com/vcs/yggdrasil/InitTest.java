@@ -9,6 +9,7 @@ import java.io.File;
 import java.io.IOException;
 
 import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.AfterEach;
 
 public class InitTest {
 
@@ -17,7 +18,7 @@ public class InitTest {
 
     @BeforeEach
     public void setUp() {
-        testDirectory = System.getProperty("java.io.tmpdir") + File.separator + "testYgg";
+        testDirectory = System.getProperty("java.io.tmpdir") +  File.separator + "yggTests" +File.separator +"testYgg";
         new File(testDirectory).mkdirs();
         initCommand = new Init(testDirectory);
     }

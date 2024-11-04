@@ -25,22 +25,27 @@ public class Init implements  Runnable{
         if(currentDirectory.contains(".ygg")){
             System.err.println("Cannot Initialize a Repository inside a .ygg directory");
             Logger.log(Logger.LogLevel.ERROR, "Invalid Repo Initialization");
-            return;
+            System.exit(1);
         }
         try {
-            String destinationDir = currentDirectory+".ygg";
+            String destinationDir = currentDirectory + java.io.File.separator + ".ygg";
             FileZipper.unzip(yggInitTemplate,destinationDir);
             Logger.log(Logger.LogLevel.INFO, "ygg Repo Initialized at "+currentDirectory);
             System.out.println("Successfully initialized repository at "+currentDirectory);
 
             if (!repoName.isEmpty()){
-                FileWriter fileWriter = new FileWriter(destinationDir+"description");
+                FileWriter fileWriter = new FileWriter(destinationDir+java.io.File.separator+"description");
                 fileWriter.write("[Repository Name]\n \t"+repoName);
             }
 
         } catch (IOException e) {
             Logger.log(Logger.LogLevel.ERROR,e.toString());
-            System.err.println("Error initalizing Repository check 'ygg logs' ");
+            System.err.println("Error initializing Repository check 'ygg logs' ");
+            try {
+                throw e;
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
+            }
         }
 
     }
