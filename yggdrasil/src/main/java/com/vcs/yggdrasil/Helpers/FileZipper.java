@@ -65,7 +65,7 @@ public class FileZipper{
     }
 
 
-    public static void zipDir(String sourceDirPath, String zipFilePath) {
+    public static void zipDir(String sourceDirPath, String zipFilePath) throws IOException {
         try (ZipOutputStream zipOut = new ZipOutputStream(Files.newOutputStream(Paths.get(zipFilePath)))) {
             zipOut.setLevel(Deflater.BEST_COMPRESSION);
             File sourceDir = new File(sourceDirPath);
@@ -73,7 +73,7 @@ public class FileZipper{
         }
         catch (IOException e){
             Logger.log(Logger.LogLevel.ERROR, e.getMessage());
-            e.printStackTrace();
+            throw e;
         }
     }
 
