@@ -13,7 +13,8 @@ import java.io.IOException;
 public class Init implements  Runnable{
     @Option(names = {"-n", "-name"}, description = "(Optional) Name for your ygg Repository") String repoName="";
 
-    protected String yggInitTemplate = "../Assets/.ygg.zip";
+    protected String yggInitTemplate = "C:\\Users\\Pratyush\\Documents\\yggdrasil-vcs\\Assets\\.ygg.zip";
+//    getClass().getClassLoader().getResourceAsStream("Utilities/.ygglog");
     private final String currentDirectory;
 
     public Init(String currentDirectory) {
