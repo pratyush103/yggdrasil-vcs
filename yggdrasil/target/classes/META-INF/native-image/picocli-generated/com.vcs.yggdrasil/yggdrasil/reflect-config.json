@@ -1,5 +1,37 @@
 [
   {
+    "name" : "com.vcs.yggdrasil.Subcommands.Add",
+    "allDeclaredConstructors" : true,
+    "allPublicConstructors" : true,
+    "allDeclaredMethods" : true,
+    "allPublicMethods" : true,
+    "fields" : [
+      { "name" : "files" }
+    ]
+  },
+  {
+    "name" : "com.vcs.yggdrasil.Subcommands.CatFile",
+    "allDeclaredConstructors" : true,
+    "allPublicConstructors" : true,
+    "allDeclaredMethods" : true,
+    "allPublicMethods" : true,
+    "fields" : [
+      { "name" : "objectHash" },
+      { "name" : "prettyPrint" },
+      { "name" : "showType" }
+    ]
+  },
+  {
+    "name" : "com.vcs.yggdrasil.Subcommands.Commit",
+    "allDeclaredConstructors" : true,
+    "allPublicConstructors" : true,
+    "allDeclaredMethods" : true,
+    "allPublicMethods" : true,
+    "fields" : [
+      { "name" : "message" }
+    ]
+  },
+  {
     "name" : "com.vcs.yggdrasil.Subcommands.Init",
     "allDeclaredConstructors" : true,
     "allPublicConstructors" : true,
@@ -7,6 +39,31 @@
     "allPublicMethods" : true,
     "fields" : [
       { "name" : "repoName" }
+    ]
+  },
+  {
+    "name" : "com.vcs.yggdrasil.Subcommands.Log",
+    "allDeclaredConstructors" : true,
+    "allPublicConstructors" : true,
+    "allDeclaredMethods" : true,
+    "allPublicMethods" : true
+  },
+  {
+    "name" : "com.vcs.yggdrasil.Subcommands.Status",
+    "allDeclaredConstructors" : true,
+    "allPublicConstructors" : true,
+    "allDeclaredMethods" : true,
+    "allPublicMethods" : true
+  },
+  {
+    "name" : "com.vcs.yggdrasil.Ygg",
+    "allDeclaredConstructors" : true,
+    "allPublicConstructors" : true,
+    "allDeclaredMethods" : true,
+    "allPublicMethods" : true,
+    "fields" : [
+      { "name" : "DEBUG" },
+      { "name" : "STACKTRACE" }
     ]
   },
   {
