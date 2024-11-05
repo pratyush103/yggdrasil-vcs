@@ -35,11 +35,14 @@ public class Add implements Runnable {
                 if (!filePath.toFile().exists()) {
                     System.err.println("pathspec '" + file + "' did not match any files");
                     Logger.log(Logger.LogLevel.ERROR, "File not found: " + file);
+                    
                     continue;
                 }
 
                 // Skip .ygg directory and its contents
                 if (filePath.startsWith(Paths.get(currentDirectory, ".ygg"))) {
+                    System.err.println("Skipping .ygg directory and its contents");
+                    Logger.log(Logger.LogLevel.ERROR, "Skipping .ygg directory and its contents");
                     continue;
                 }
 

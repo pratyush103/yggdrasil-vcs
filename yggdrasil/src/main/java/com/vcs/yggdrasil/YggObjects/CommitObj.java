@@ -32,7 +32,7 @@ public class CommitObj implements YggObject {
         this.objectHash = ObjectHasherCompressor.objectToSha1(this);
     }
 
-    public CommitObj(String commitContent, boolean fromFile) throws Exception {
+    public CommitObj(String commitContent, String commitHashFromFile, boolean fromFile) throws Exception {
         this.commitContent = commitContent;
         String[] lines = commitContent.split("\n");
         StringBuilder tempCommitMessage = new StringBuilder();
@@ -56,7 +56,7 @@ public class CommitObj implements YggObject {
             }
         }
         this.commitMessage = tempCommitMessage.toString().trim();
-        this.objectHash = ObjectHasherCompressor.objectToSha1(this);
+        this.objectHash = commitHashFromFile;
     }
 
     private String initializeCommitInfo(String... strings) {

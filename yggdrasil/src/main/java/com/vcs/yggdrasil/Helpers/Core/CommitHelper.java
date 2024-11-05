@@ -48,6 +48,7 @@ public class CommitHelper {
         index.getEntries().clear();
         index.save();
 
+        System.out.println("[" + newCommit.getObjectHash() + "] " + message);
         Logger.log(LogLevel.INFO, "Created commit " + newCommit.getObjectHash());
     }
 }
