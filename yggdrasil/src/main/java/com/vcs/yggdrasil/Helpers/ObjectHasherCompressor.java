@@ -47,14 +47,14 @@ public class ObjectHasherCompressor {
                 deflaterOut.finish(); // Ensure all data is written out
                 Logger.log(Logger.LogLevel.INFO, "Stored object: " + yggObj.getObjectHash());
                     
-                // Store children for tree objects
-                if (yggObj instanceof TreeObj) {
-                    TreeObj treeObj = (TreeObj) yggObj;
-                    for (YggFileObj child : treeObj.getChildren()) {
-                        storeObject(child, pathToRepo);
-                    }
-                }
                 
+            }
+            // Store children for tree objects
+            if (yggObj instanceof TreeObj) {
+                TreeObj treeObj = (TreeObj) yggObj;
+                for (YggFileObj child : treeObj.getChildren()) {
+                    storeObject(child, pathToRepo);
+                }
             }
 
             
@@ -79,7 +79,7 @@ public class ObjectHasherCompressor {
                 lastCommitHash.substring(2));
         byte[] commitContent = decompressObject(commitPath);
 
-        CommitObj lastCommit = new CommitObj(new String(commitContent), true);
+        CommitObj lastCommit = new CommitObj(new String(commitContent),lastCommitHash ,true);
         String treeHash = lastCommit.tree;
 
         return loadTreeObject(pathToRepo, treeHash);
@@ -99,7 +99,7 @@ public class ObjectHasherCompressor {
                 lastCommitHash.substring(2));
         byte[] commitContent = decompressObject(commitPath);
 
-        return new CommitObj(new String(commitContent), true);
+        return new CommitObj(new String(commitContent), lastCommitHash, true);
     }
 
     public static YggFileObj loadTreeObject(String pathToRepo, String treeHash) throws Exception {
