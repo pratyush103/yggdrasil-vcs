@@ -393,4 +393,28 @@ public class AddAndCommitTest {
         assertTrue(result.contains("Initial commit"));
         assertFalse(result.contains("parent"));
     }
+
+    @Test
+public void diffShowsChanges() throws Exception {
+    // Create two files with different content
+    Files.write(Paths.get(testDirectory, "file1.txt"), "line1\nline2\n".getBytes());
+    new CommandLine(addCommand).execute("file1.txt");
+    new CommandLine(commitCommand).execute("-m", "First version");
+    String hash1 = new Index(testDirectory).getEntries().values().iterator().next();
+
+    Files.write(Paths.get(testDirectory, "file1.txt"), "line1\nline3\n".getBytes());
+    new CommandLine(addCommand).execute("file1.txt");
+    String hash2 = new Index(testDirectory).getEntries().values().iterator().next();
+
+    // Test diff command
+    Diff diffCommand = new Diff(testDirectory);
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    System.setOut(new PrintStream(output));
+
+    new CommandLine(diffCommand).execute(hash1, hash2);
+    
+    String result = output.toString();
+    assertTrue(result.contains("line2")); // Deleted line
+    assertTrue(result.contains("line3")); // Added line
+}
 }

@@ -89,7 +89,7 @@ public class Status implements Runnable {
                 System.out.println("\nChanges not staged for commit:");
                 System.out.println("  (use \"ygg add <file>...\" to update what will be committed)");
                 for (String file : modified) {
-                    System.out.println("\t" + "modified: " + file);
+                    System.out.println("\t" + "\u001B[33m" + "modified: " + file + "\u001B[0m");
                 }
             }
 
@@ -104,7 +104,7 @@ public class Status implements Runnable {
                 System.out.println("\nUntracked files:");
                 System.out.println("  (use \"ygg add <file>...\" to include in what will be committed)");
                 for (String file : untracked) {
-                    System.out.println("\t" + file);
+                    System.out.println("\t" +"\u001B[31m" + file + "\u001B[0m");
                 }
             }
 

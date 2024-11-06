@@ -5,6 +5,7 @@ package com.vcs.yggdrasil;
 import com.vcs.yggdrasil.Subcommands.Add;
 import com.vcs.yggdrasil.Subcommands.CatFile;
 import com.vcs.yggdrasil.Subcommands.Commit;
+import com.vcs.yggdrasil.Subcommands.Diff;
 import com.vcs.yggdrasil.Subcommands.Init;
 import com.vcs.yggdrasil.Subcommands.Log;
 import com.vcs.yggdrasil.Subcommands.Status;
@@ -47,9 +48,10 @@ import com.vcs.yggdrasil.Helpers.Logger;
             .parameters  (Style.fg_yellow)
             .optionParams(Style.italic)
             .errors      (Style.fg_red, Style.bold)
-            .stackTraces (Style.italic)
-            .applySystemProperties() // optional: allow end users to customize
+            .stackTraces (Style.italic)            
             .build();
+
+            // .applySystemProperties() // optional: allow end users to customize
 
             Ygg ygg = new Ygg();
             CommandLine cmd = new CommandLine(ygg);
@@ -60,6 +62,7 @@ import com.vcs.yggdrasil.Helpers.Logger;
             cmd.addSubcommand(new Status(currentDirectory));
             cmd.addSubcommand(new CatFile(currentDirectory));
             cmd.addSubcommand(new Log(currentDirectory));
+            cmd.addSubcommand(new Diff(currentDirectory));
 
             if (args.length == 0) {
                 cmd.usage(System.out);

@@ -32,6 +32,17 @@
     ]
   },
   {
+    "name" : "com.vcs.yggdrasil.Subcommands.Diff",
+    "allDeclaredConstructors" : true,
+    "allPublicConstructors" : true,
+    "allDeclaredMethods" : true,
+    "allPublicMethods" : true,
+    "fields" : [
+      { "name" : "hash1" },
+      { "name" : "hash2" }
+    ]
+  },
+  {
     "name" : "com.vcs.yggdrasil.Subcommands.Init",
     "allDeclaredConstructors" : true,
     "allPublicConstructors" : true,
