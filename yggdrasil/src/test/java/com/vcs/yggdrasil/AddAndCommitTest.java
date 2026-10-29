@@ -1,9 +1,9 @@
 package com.vcs.yggdrasil;
 
 import com.vcs.yggdrasil.Helpers.Core.Index;
+import com.vcs.yggdrasil.Helpers.ObjectHasherCompressor;
 import com.vcs.yggdrasil.Subcommands.*;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
@@ -86,7 +86,7 @@ public class AddAndCommitTest {
     }
 
     @Test
-    public void commitSuccessfullyAfterAdd() {
+    public void commitSuccessfullyAfterAdd() throws IOException {
         // First add a file
         new CommandLine(addCommand).execute("file1.txt");
 
@@ -96,17 +96,13 @@ public class AddAndCommitTest {
         assertEquals(0, exitCode);
         assertTrue(Files.exists(Paths.get(testDirectory, ".ygg", "HEAD")));
 
-        // Verify that the commit object is stored
-        String headContent;
-        try {
-            headContent = new String(Files.readAllBytes(Paths.get(testDirectory, ".ygg", "HEAD"))).trim();
-            String commitHash = headContent.replace("ref: ", "").trim();
-            Path commitPath = Paths.get(testDirectory, ".ygg", "objects", commitHash.substring(0, 2), commitHash.substring(2));
-            assertTrue(Files.exists(commitPath));
-        } catch (IOException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
+        // Verify that HEAD remains a symbolic ref and the commit object is stored
+        String headContent = new String(Files.readAllBytes(Paths.get(testDirectory, ".ygg", "HEAD"))).trim();
+        assertEquals("ref: refs/heads/master", headContent);
+        String commitHash = ObjectHasherCompressor.resolveHeadCommitHash(testDirectory);
+        assertNotNull(commitHash);
+        Path commitPath = Paths.get(testDirectory, ".ygg", "objects", commitHash.substring(0, 2), commitHash.substring(2));
+        assertTrue(Files.exists(commitPath));
     }
 
     @Test
@@ -132,11 +128,10 @@ public class AddAndCommitTest {
         new CommandLine(addCommand).execute("file1.txt");
         new CommandLine(commitCommand).execute("-m", "First commit");
 
-        // Verify that the first commit object is stored
-        String firstCommitHash = new String(Files.readAllBytes(Paths.get(testDirectory, ".ygg", "HEAD"))).trim();
-        String commitHash = firstCommitHash.replace("ref: ", "").trim();
+        // Verify that the first commit object is stored via symbolic HEAD
+        String commitHash = ObjectHasherCompressor.resolveHeadCommitHash(testDirectory);
+        assertNotNull(commitHash);
         Path firstCommitPath = Paths.get(testDirectory, ".ygg", "objects", commitHash.substring(0, 2), commitHash.substring(2));
-        System.out.println(firstCommitPath.toString());
         
         // Modify file
         Files.write(Paths.get(testDirectory, "file1.txt"), "modified content".getBytes());
@@ -146,9 +141,9 @@ public class AddAndCommitTest {
         int exitCode = new CommandLine(commitCommand).execute("-m", "Second commit");
         
         // Verify that the second commit object is stored
-        String secondCommitHash = new String(Files.readAllBytes(Paths.get(testDirectory, ".ygg", "HEAD"))).trim();
-        commitHash = secondCommitHash.replace("ref: ", "").trim();
-        Path secondCommitPath = Paths.get(testDirectory, ".ygg", "objects", commitHash.substring(0, 2), commitHash.substring(2));
+        String secondCommitHash = ObjectHasherCompressor.resolveHeadCommitHash(testDirectory);
+        assertNotNull(secondCommitHash);
+        Path secondCommitPath = Paths.get(testDirectory, ".ygg", "objects", secondCommitHash.substring(0, 2), secondCommitHash.substring(2));
         assertTrue(Files.exists(firstCommitPath));
         assertEquals(0, exitCode);
         assertTrue(Files.exists(secondCommitPath));
@@ -167,8 +162,8 @@ public class AddAndCommitTest {
             index = new Index(testDirectory);
             Map<String, String> entries = index.getEntries();
             assertTrue(entries.containsKey(Paths.get(testDirectory, "subdir", "file3.txt").toString()));
+            assertTrue(entries.containsKey("subdir/file3.txt"));
         } catch (IOException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
         }
     }
@@ -288,9 +283,7 @@ public class AddAndCommitTest {
         new CommandLine(statusCommand).execute();
         
         String output = outputStream.toString();
-        assertTrue(output.contains("On branch"));
-
-        
+        assertTrue(output.contains("On branch master"));
     }
 
     @Test
@@ -302,7 +295,7 @@ public class AddAndCommitTest {
     
         // Get object hash from index
         Index index = new Index(testDirectory);
-        String objectHash = index.getEntries().values().iterator().next();
+        String objectHash = index.getEntries().get("test.txt");
     
         // Test cat-file -t
         CatFile catFile = new CatFile(testDirectory);
@@ -325,7 +318,7 @@ public class AddAndCommitTest {
     
         // Get object hash
         Index index = new Index(testDirectory);
-        String objectHash = index.getEntries().values().iterator().next();
+        String objectHash = index.getEntries().get("test.txt");
     
         // Test cat-file -p
         CatFile catFile = new CatFile(testDirectory);
@@ -338,7 +331,7 @@ public class AddAndCommitTest {
         assertEquals(content, result);
     }
 
-        @Test
+    @Test
     public void logShowsCommitHistory() throws Exception {
         // Create multiple commits
         Files.write(Paths.get(testDirectory, "file1.txt"), "content1".getBytes());
@@ -359,7 +352,7 @@ public class AddAndCommitTest {
         String result = output.toString();
         assertTrue(result.contains("Second commit"));
         assertTrue(result.contains("First commit"));
-        assertTrue(result.matches("(?s).*commit [a-f0-9]{40}.*")); // Check for commit hash format
+        assertTrue(result.matches("(?s).*commit [a-f0-9]{40}.*"));
     }
     
     @Test
@@ -395,26 +388,26 @@ public class AddAndCommitTest {
     }
 
     @Test
-public void diffShowsChanges() throws Exception {
-    // Create two files with different content
-    Files.write(Paths.get(testDirectory, "file1.txt"), "line1\nline2\n".getBytes());
-    new CommandLine(addCommand).execute("file1.txt");
-    new CommandLine(commitCommand).execute("-m", "First version");
-    String hash1 = new Index(testDirectory).getEntries().values().iterator().next();
+    public void diffShowsChanges() throws Exception {
+        // Create two files with different content
+        Files.write(Paths.get(testDirectory, "file1.txt"), "line1\nline2\n".getBytes());
+        new CommandLine(addCommand).execute("file1.txt");
+        new CommandLine(commitCommand).execute("-m", "First version");
+        String hash1 = new Index(testDirectory).getEntries().get("file1.txt");
 
-    Files.write(Paths.get(testDirectory, "file1.txt"), "line1\nline3\n".getBytes());
-    new CommandLine(addCommand).execute("file1.txt");
-    String hash2 = new Index(testDirectory).getEntries().values().iterator().next();
+        Files.write(Paths.get(testDirectory, "file1.txt"), "line1\nline3\n".getBytes());
+        new CommandLine(addCommand).execute("file1.txt");
+        String hash2 = new Index(testDirectory).getEntries().get("file1.txt");
 
-    // Test diff command
-    Diff diffCommand = new Diff(testDirectory);
-    ByteArrayOutputStream output = new ByteArrayOutputStream();
-    System.setOut(new PrintStream(output));
+        // Test diff command
+        Diff diffCommand = new Diff(testDirectory);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(output));
 
-    new CommandLine(diffCommand).execute(hash1, hash2);
-    
-    String result = output.toString();
-    assertTrue(result.contains("line2")); // Deleted line
-    assertTrue(result.contains("line3")); // Added line
-}
+        new CommandLine(diffCommand).execute(hash1, hash2);
+        
+        String result = output.toString();
+        assertTrue(result.contains("line2")); // Deleted line
+        assertTrue(result.contains("line3")); // Added line
+    }
 }

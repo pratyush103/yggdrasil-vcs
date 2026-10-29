@@ -31,7 +31,7 @@ public class Commit implements Runnable {
         } catch (Exception e) {
             System.err.println("Error creating commit: " + e.getMessage());
             Logger.log(Logger.LogLevel.ERROR, e.getMessage());
-            System.exit(1);
+            throw new RuntimeException(e);
         }
     }
 }

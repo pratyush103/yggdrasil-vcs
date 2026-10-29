@@ -1,3 +1,6 @@
+target/
 *.class
-/OptionsAndParameters2.png
 .ygglog
+/OptionsAndParameters2.png
+dependency-reduced-pom.xml
+.ygg/

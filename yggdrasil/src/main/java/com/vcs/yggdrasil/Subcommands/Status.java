@@ -1,14 +1,16 @@
 package com.vcs.yggdrasil.Subcommands;
 
 import com.vcs.yggdrasil.Helpers.Core.*;
+import com.vcs.yggdrasil.Helpers.IgnoreMatcher;
 import com.vcs.yggdrasil.Helpers.ObjectHasherCompressor;
+import com.vcs.yggdrasil.Helpers.RepoLocator;
 import com.vcs.yggdrasil.YggObjects.*;
 import picocli.CommandLine.Command;
 
-import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Command(name = "status", description = "Show the working tree status")
 public class Status implements Runnable {
@@ -21,110 +23,136 @@ public class Status implements Runnable {
     @Override
     public void run() {
         try {
-            // Get branch info
-            Path headPath = Paths.get(currentDirectory, ".ygg", "HEAD");
-            String headContent = Files.exists(headPath) ? 
-                new String(Files.readAllBytes(headPath)).trim() : null;
-            
-            // Load current index
-            Index index = new Index(currentDirectory);
-            Map<String, String> indexEntries = index.getEntries();
+            String repoRoot = RepoLocator.findRepoRoot(currentDirectory);
+            IgnoreMatcher ignoreMatcher = new IgnoreMatcher(repoRoot);
 
-            // Get working tree state
-            Set<String> workingFiles = getWorkingTreeFiles();
-            
-            // Get status categories
-            Map<String, FileStatus> fileStatuses = new HashMap<>();
-            
-            // Check each file in working directory
-            for (String file : workingFiles) {
-                Path filePath = Paths.get(file);
-                String relativePath = Paths.get(currentDirectory).relativize(filePath).toString();
-                
-                if (indexEntries.containsKey(file)) {
-                    // File is tracked
-                    byte[] currentContent = Files.readAllBytes(filePath);
-                    String currentHash = ObjectHasherCompressor.byteArrayToSha1(currentContent);
-                    
-                    if (!indexEntries.get(file).equals(currentHash)) {
-                        fileStatuses.put(relativePath, FileStatus.MODIFIED);
-                    }
+            // Determine branch info from HEAD
+            Path headPath = Paths.get(repoRoot, ".ygg", "HEAD");
+            String headContent = Files.exists(headPath)
+                    ? new String(Files.readAllBytes(headPath), StandardCharsets.UTF_8).trim()
+                    : null;
+
+            String branchName = "master";
+            if (headContent != null && !headContent.isEmpty()) {
+                if (headContent.startsWith("ref: refs/heads/")) {
+                    branchName = headContent.substring("ref: refs/heads/".length()).trim();
+                } else if (headContent.startsWith("ref: ")) {
+                    branchName = headContent.substring(5).trim();
                 } else {
-                    fileStatuses.put(relativePath, FileStatus.UNTRACKED);
+                    branchName = "HEAD detached at " + headContent.substring(0, Math.min(7, headContent.length()));
+                }
+            }
+
+            // 1. Load HEAD commit tree files (relPath -> hash)
+            Map<String, String> headFiles = new TreeMap<>();
+            try {
+                YggFileObj headTree = ObjectHasherCompressor.loadLastCommitTree(repoRoot);
+                if (headTree instanceof TreeObj) {
+                    headFiles.putAll(DiffHelper.flattenTree((TreeObj) headTree));
+                }
+            } catch (Exception ignored) {
+                // No commits yet
+            }
+
+            // 2. Load current Index (relPath -> hash)
+            Index index = new Index(repoRoot);
+            Map<String, String> indexEntries = new TreeMap<>(index.getEntries());
+
+            // 3. Scan Working Tree files (relPath -> hash)
+            Map<String, String> workingFiles = getWorkingTreeFiles(repoRoot, ignoreMatcher);
+
+            // Compute "Changes to be committed" (HEAD vs Index)
+            List<String> stagedChanges = new ArrayList<>();
+            Set<String> headAndIndexPaths = new TreeSet<>();
+            headAndIndexPaths.addAll(headFiles.keySet());
+            headAndIndexPaths.addAll(indexEntries.keySet());
+
+            for (String path : headAndIndexPaths) {
+                String headHash = headFiles.get(path);
+                String indexHash = indexEntries.get(path);
+                if (headHash == null && indexHash != null) {
+                    stagedChanges.add("new file: " + path);
+                } else if (headHash != null && indexHash == null) {
+                    stagedChanges.add("deleted: " + path);
+                } else if (headHash != null && !headHash.equals(indexHash)) {
+                    stagedChanges.add("modified: " + path);
+                }
+            }
+
+            // Compute "Changes not staged for commit" (Index vs Working Tree)
+            List<String> unstagedChanges = new ArrayList<>();
+            for (Map.Entry<String, String> entry : indexEntries.entrySet()) {
+                String path = entry.getKey();
+                String indexHash = entry.getValue();
+                String workHash = workingFiles.get(path);
+                if (workHash == null) {
+                    unstagedChanges.add("deleted: " + path);
+                } else if (!indexHash.equals(workHash)) {
+                    unstagedChanges.add("modified: " + path);
+                }
+            }
+
+            // Compute "Untracked files" (Working Tree not in Index)
+            List<String> untracked = new ArrayList<>();
+            for (String path : workingFiles.keySet()) {
+                if (!indexEntries.containsKey(path)) {
+                    untracked.add(path);
                 }
             }
 
             // Print status
-            System.out.println("On branch " + (headContent != null ? 
-                headContent.replace("ref: refs/heads/", "") : "No commits yet"));
-            
-            if (fileStatuses.isEmpty()) {
+            System.out.println("On branch " + branchName);
+
+            if (stagedChanges.isEmpty() && unstagedChanges.isEmpty() && untracked.isEmpty()) {
                 System.out.println("nothing to commit, working tree clean");
                 return;
             }
 
-            // Changes to be committed
-            List<String> staged = fileStatuses.entrySet().stream()
-                .filter(e -> e.getValue() == FileStatus.STAGED)
-                .map(Map.Entry::getKey)
-                .sorted()
-                .collect(Collectors.toList());
-
-            if (!staged.isEmpty()) {
+            if (!stagedChanges.isEmpty()) {
                 System.out.println("\nChanges to be committed:");
                 System.out.println("  (use \"ygg reset HEAD <file>...\" to unstage)");
-                for (String file : staged) {
-                    System.out.println("\t" + "modified: " + file);
+                for (String change : stagedChanges) {
+                    System.out.println("\t" + change);
                 }
             }
 
-            // Changes not staged
-            List<String> modified = fileStatuses.entrySet().stream()
-                .filter(e -> e.getValue() == FileStatus.MODIFIED)
-                .map(Map.Entry::getKey)
-                .sorted()
-                .collect(Collectors.toList());
-
-            if (!modified.isEmpty()) {
+            if (!unstagedChanges.isEmpty()) {
                 System.out.println("\nChanges not staged for commit:");
                 System.out.println("  (use \"ygg add <file>...\" to update what will be committed)");
-                for (String file : modified) {
-                    System.out.println("\t" + "\u001B[33m" + "modified: " + file + "\u001B[0m");
+                for (String change : unstagedChanges) {
+                    System.out.println("\t" + "\u001B[33m" + change + "\u001B[0m");
                 }
             }
-
-            // Untracked files
-            List<String> untracked = fileStatuses.entrySet().stream()
-                .filter(e -> e.getValue() == FileStatus.UNTRACKED)
-                .map(Map.Entry::getKey)
-                .sorted()
-                .collect(Collectors.toList());
 
             if (!untracked.isEmpty()) {
                 System.out.println("\nUntracked files:");
                 System.out.println("  (use \"ygg add <file>...\" to include in what will be committed)");
                 for (String file : untracked) {
-                    System.out.println("\t" +"\u001B[31m" + file + "\u001B[0m");
+                    System.out.println("\t" + "\u001B[31m" + file + "\u001B[0m");
                 }
             }
 
         } catch (Exception e) {
             System.err.println("Error getting status: " + e.getMessage());
+            throw new RuntimeException(e);
         }
     }
 
-    private Set<String> getWorkingTreeFiles() throws Exception {
-        Set<String> files = new HashSet<>();
-        Files.walk(Paths.get(currentDirectory))
-            .filter(Files::isRegularFile)
-            .filter(p -> !p.toString().contains(".ygg"))
-            .forEach(p -> files.add(p.toString()));
+    private Map<String, String> getWorkingTreeFiles(String repoRoot, IgnoreMatcher ignoreMatcher) throws Exception {
+        Map<String, String> files = new TreeMap<>();
+        Path rootPath = Paths.get(repoRoot).normalize();
+        try (Stream<Path> walk = Files.walk(rootPath)) {
+            List<Path> regularFiles = new ArrayList<>();
+            walk.filter(Files::isRegularFile).forEach(regularFiles::add);
+            for (Path p : regularFiles) {
+                String relPath = RepoLocator.toRepoRelative(repoRoot, p);
+                if (relPath.isEmpty() || ignoreMatcher.isIgnored(relPath, false)) {
+                    continue;
+                }
+                BlobObj blob = new BlobObj(p.toFile());
+                files.put(relPath, blob.getObjectHash());
+            }
+        }
         return files;
-    }
-
-    private enum FileStatus {
-        UNTRACKED,
-        MODIFIED,
-        STAGED
     }
 }

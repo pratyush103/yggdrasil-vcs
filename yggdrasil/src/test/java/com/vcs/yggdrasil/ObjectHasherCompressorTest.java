@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Comparator;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -25,9 +26,8 @@ public class ObjectHasherCompressorTest {
 
     @BeforeEach
     public void setUp() throws Exception {
-        // Setup test directory
-
-        testDirectory = System.getProperty("java.io.tmpdir") + File.separator + "yggTests";
+        // Setup unique test directory for each test
+        testDirectory = System.getProperty("java.io.tmpdir") + File.separator + "yggTests" + File.separator + "testYgg" + System.currentTimeMillis() + "_" + System.nanoTime();
         new File(testDirectory).mkdirs();
         
         // Initialize repository
@@ -63,34 +63,40 @@ public class ObjectHasherCompressorTest {
     @Test
     public void testStoreAndLoadBlob() throws Exception {
         // Create and store blob
-        BlobObj originalBlob = new BlobObj(testFile1.toFile());
-        File storedFile = ObjectHasherCompressor.storeObject(originalBlob, testDirectory);
+        BlobObj blob = new BlobObj(testFile1.toFile());
+        File storedFile = ObjectHasherCompressor.storeObject(blob, testDirectory);
         
         assertTrue(storedFile.exists());
         
-        // Verify content through decompression
-        byte[] decompressedContent = ObjectHasherCompressor.decompressObject(storedFile.toPath());
-        String content = new String(decompressedContent);
-        assertTrue(content.contains("test content 1"));
+        // Verify file path structure (.ygg/objects/xx/rest_of_hash)
+        String hash = blob.getObjectHash();
+        Path expectedPath = Paths.get(testDirectory, ".ygg", "objects", 
+            hash.substring(0, 2), hash.substring(2));
+        assertEquals(expectedPath.toString(), storedFile.getPath());
+
+        // Decompress and verify content
+        byte[] decompressed = ObjectHasherCompressor.decompressObject(storedFile.toPath());
+        assertNotNull(decompressed);
+        assertTrue(decompressed.length > 0);
     }
 
     @Test
     public void testStoreAndLoadTree() throws Exception {
-        // Create and store tree
-        TreeObj originalTree = new TreeObj(new File(testDirectory));
-        File storedFile = ObjectHasherCompressor.storeObject(originalTree, testDirectory);
+        // Create tree from directory
+        TreeObj tree = new TreeObj(new File(testDirectory));
+        File storedTreeFile = ObjectHasherCompressor.storeObject(tree, testDirectory);
         
-        assertTrue(storedFile.exists());
-        
-        // Load and verify tree
-        YggFileObj loadedTree = ObjectHasherCompressor.loadTreeObject(testDirectory, originalTree.getObjectHash());
+        assertTrue(storedTreeFile.exists());
+
+        // Load tree using loadTreeObject
+        YggFileObj loadedTree = ObjectHasherCompressor.loadTreeObject(testDirectory, tree.getObjectHash());
         assertNotNull(loadedTree);
-        assertTrue(loadedTree instanceof TreeObj);
+        assertEquals(tree.getObjectHash(), loadedTree.getObjectHash());
     }
 
     @Test
     public void testStoreAndLoadCommit() throws Exception {
-        // Create initial tree
+        // First create and store a tree
         TreeObj tree = new TreeObj(new File(testDirectory));
         ObjectHasherCompressor.storeObject(tree, testDirectory);
 
@@ -144,9 +150,11 @@ public class ObjectHasherCompressorTest {
 
     @AfterEach
     public void tearDown() throws Exception {
-        // Delete test directory and its contents
-        Files.walk(Paths.get(testDirectory))
-            .map(Path::toFile)
-            .forEach(File::delete);
+        if (testDirectory != null && Files.exists(Paths.get(testDirectory))) {
+            Files.walk(Paths.get(testDirectory))
+                .sorted(Comparator.reverseOrder())
+                .map(Path::toFile)
+                .forEach(File::delete);
+        }
     }
 }

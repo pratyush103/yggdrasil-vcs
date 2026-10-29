@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+JAR_FILE="$SCRIPT_DIR/yggdrasil/target/yggdrasil-1.0-SNAPSHOT.jar"
+
+if [ ! -f "$JAR_FILE" ]; then
+    echo "[ygg] Building project jar..."
+    "$SCRIPT_DIR/mvnw" package -DskipTests -q
+fi
+
+exec java -jar "$JAR_FILE" "$@"

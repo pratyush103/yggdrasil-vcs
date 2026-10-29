@@ -9,13 +9,34 @@ import java.util.Set;
 
 public class POSIXFileMode {
 
-    public static int Provider(File file) throws IOException{
+    /**
+     * Returns the Git-compatible mode integer for a file or directory:
+     * - 40000 for directories
+     * - 100755 for executable regular files
+     * - 100644 for normal regular files
+     */
+    public static int getGitFileMode(File file) {
+        if (file.isDirectory()) {
+            return 40000;
+        }
         try {
-            // Get the file attributes
+            PosixFileAttributes attrs = Files.readAttributes(file.toPath(), PosixFileAttributes.class);
+            Set<PosixFilePermission> permissions = attrs.permissions();
+            if (permissions.contains(PosixFilePermission.OWNER_EXECUTE)) {
+                return 100755;
+            }
+            return 100644;
+        } catch (UnsupportedOperationException | IOException e) {
+            // Fallback for Windows NTFS / non-POSIX filesystems
+            return 100644;
+        }
+    }
+
+    public static int Provider(File file) throws IOException {
+        try {
             PosixFileAttributes attrs = Files.readAttributes(file.toPath(), PosixFileAttributes.class);
             Set<PosixFilePermission> permissions = attrs.permissions();
 
-            // Convert permissions to octal format
             int mode = 0;
             for (PosixFilePermission perm : permissions) {
                 switch (perm) {
@@ -48,8 +69,9 @@ public class POSIXFileMode {
                         break;
                 }
             }
-
             return mode;
+        } catch (UnsupportedOperationException e) {
+            return file.isDirectory() ? 0755 : 0644;
         } catch (IOException e) {
             Logger.log(Logger.LogLevel.ERROR, e.getMessage());
             throw e;

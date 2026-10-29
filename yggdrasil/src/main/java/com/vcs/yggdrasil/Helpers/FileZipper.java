@@ -11,13 +11,16 @@ import com.vcs.yggdrasil.Helpers.Logger;
 
 public class FileZipper{
 
-
     public static void unzip(String zipFilePath, String destDirectory) throws IOException {
+        unzip(Files.newInputStream(Paths.get(zipFilePath)), destDirectory);
+    }
+
+    public static void unzip(InputStream inputStream, String destDirectory) throws IOException {
         File destDir = new File(destDirectory);
         if (!destDir.exists()) {
             destDir.mkdirs();
         }
-        try (ZipInputStream zipIn = new ZipInputStream(Files.newInputStream(Paths.get(zipFilePath)))) {
+        try (ZipInputStream zipIn = new ZipInputStream(inputStream)) {
             ZipEntry entry = zipIn.getNextEntry();
             while (entry != null) {
                 String filePath = destDirectory + File.separator + entry.getName();
@@ -25,9 +28,7 @@ public class FileZipper{
                     extractFile(zipIn, filePath);
                 } else {
                     File dir = new File(filePath);
-                    if(dir.mkdirs()){
-
-                    }
+                    dir.mkdirs();
                 }
                 zipIn.closeEntry();
                 entry = zipIn.getNextEntry();
@@ -107,22 +108,4 @@ public class FileZipper{
             }
         }
     }
-
-//    public static void main(String[] args) {
-//        String sourceDirPath = "C:/Users/Pratyush/Desktop/New folder (3)/.ygg";
-//        String zipFilePath = "Assets";
-//
-////        zipDir(sourceDirPath, zipFilePath);
-////        System.out.println("Directory zipped successfully.")
-//
-//        try {
-//
-//            unzip("Assets/.ygg.zip", "Assets/.ygg" );
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
-//    }
-
-
-
 }

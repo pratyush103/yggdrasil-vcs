@@ -1,11 +1,14 @@
 package com.vcs.yggdrasil.Subcommands;
 
-import com.vcs.yggdrasil.Helpers.ObjectHasherCompressor;
 import com.vcs.yggdrasil.Helpers.Logger;
+import com.vcs.yggdrasil.Helpers.ObjectHasherCompressor;
+import com.vcs.yggdrasil.Helpers.RepoLocator;
+import com.vcs.yggdrasil.YggObjects.TreeObj;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -19,7 +22,7 @@ public class CatFile implements Runnable {
     @Option(names = "-p", description = "Pretty-print object content")
     private boolean prettyPrint;
 
-    @Parameters(description = "The object hash to show")
+    @Parameters(description = "The object hash or ref to show")
     private String objectHash;
 
     public CatFile(String currentDirectory) {
@@ -34,18 +37,34 @@ public class CatFile implements Runnable {
                 return;
             }
 
+            String repoRoot = RepoLocator.findRepoRoot(currentDirectory);
+            String resolvedHash = ObjectHasherCompressor.resolveRefOrHash(repoRoot, objectHash);
+            if (resolvedHash == null) {
+                resolvedHash = objectHash;
+            }
+
             // Construct path to object
-            String dirName = objectHash.substring(0, 2);
-            String fileName = objectHash.substring(2);
-            Path objectPath = Paths.get(currentDirectory, ".ygg", "objects", dirName, fileName);
+            String dirName = resolvedHash.substring(0, 2);
+            String fileName = resolvedHash.substring(2);
+            Path objectPath = Paths.get(repoRoot, ".ygg", "objects", dirName, fileName);
 
-            // Get object content
+            // Get raw decompressed object content
             byte[] content = ObjectHasherCompressor.decompressObject(objectPath);
-            String strContent = new String(content);
 
-            // Parse header
-            int nullIndex = strContent.indexOf('\0');
-            String header = strContent.substring(0, nullIndex);
+            // Parse header up to null byte
+            int nullIndex = -1;
+            for (int i = 0; i < content.length; i++) {
+                if (content[i] == 0) {
+                    nullIndex = i;
+                    break;
+                }
+            }
+            if (nullIndex == -1) {
+                System.err.println("Corrupt object: missing header delimiter");
+                return;
+            }
+
+            String header = new String(content, 0, nullIndex, StandardCharsets.UTF_8);
             String[] headerParts = header.split(" ");
             String objectType = headerParts[0];
 
@@ -55,12 +74,15 @@ public class CatFile implements Runnable {
             }
 
             if (prettyPrint) {
-                // Print content after header
-                String objectContent = strContent.substring(nullIndex + 1);
-                System.out.println(objectContent);
+                if ("tree".equals(objectType)) {
+                    TreeObj tree = new TreeObj(content, repoRoot, "");
+                    System.out.print(tree.toString());
+                } else {
+                    String objectContent = new String(content, nullIndex + 1, content.length - nullIndex - 1, StandardCharsets.UTF_8);
+                    System.out.println(objectContent);
+                }
             } else {
                 System.err.println("Neither -p nor -t specified");
-                return;
             }
 
         } catch (Exception e) {

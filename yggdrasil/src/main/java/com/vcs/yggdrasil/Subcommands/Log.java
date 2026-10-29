@@ -1,17 +1,20 @@
 package com.vcs.yggdrasil.Subcommands;
 
-import com.vcs.yggdrasil.Helpers.ObjectHasherCompressor;
 import com.vcs.yggdrasil.Helpers.Logger;
 import com.vcs.yggdrasil.Helpers.Logger.LogLevel;
+import com.vcs.yggdrasil.Helpers.ObjectHasherCompressor;
+import com.vcs.yggdrasil.Helpers.RepoLocator;
 import com.vcs.yggdrasil.YggObjects.CommitObj;
 import picocli.CommandLine.Command;
 
 import java.nio.file.*;
-import java.util.*;
 
 @Command(name = "log", description = "Show commit logs")
 public class Log implements Runnable {
     private final String currentDirectory;
+
+    private static final String YELLOW = "\u001B[33m";
+    private static final String RESET = "\u001B[0m";
 
     public Log(String currentDirectory) {
         this.currentDirectory = currentDirectory;
@@ -20,53 +23,46 @@ public class Log implements Runnable {
     @Override
     public void run() {
         try {
-            // Read HEAD
-            Path headPath = Paths.get(currentDirectory, ".ygg", "HEAD");
+            String repoRoot = RepoLocator.findRepoRoot(currentDirectory);
+            Path headPath = Paths.get(repoRoot, ".ygg", "HEAD");
             if (!Files.exists(headPath)) {
-                System.err.println("Fatal: Not a ygg repository (or no commits exist)");
+                System.out.println("Fatal: Not a ygg repository (or no commits exist)");
                 Logger.log(LogLevel.FATAL, "Not a ygg repository (or no commits exist)");
                 return;
             }
 
-            String headContent = new String(Files.readAllBytes(headPath)).trim();
-            String refPath = headContent.replace("ref: ", "");
-            Path commitRefPath = Paths.get(currentDirectory, ".ygg", refPath);
-            
-            if (!Files.exists(commitRefPath)) {
-                System.err.println("Fatal: No commits yet");
+            String commitHash = ObjectHasherCompressor.resolveHeadCommitHash(repoRoot);
+            if (commitHash == null || commitHash.isEmpty()) {
+                System.out.println("Fatal: No commits yet");
                 return;
             }
 
-            String commitHash = new String(Files.readAllBytes(commitRefPath)).trim();
-            printCommitHistory(commitHash);
+            printCommitHistory(repoRoot, commitHash);
 
         } catch (Exception e) {
             System.err.println("Error showing log: " + e.getMessage());
         }
     }
 
-    private void printCommitHistory(String commitHash) throws Exception {
-        while (commitHash != null) {
-            // Load commit object
-            Path commitPath = Paths.get(currentDirectory, ".ygg", "objects", 
-                commitHash.substring(0, 2), commitHash.substring(2));
-            
-            byte[] commitContent = ObjectHasherCompressor.decompressObject(commitPath);
-            CommitObj commit = new CommitObj(new String(commitContent), commitHash, true);
+    private void printCommitHistory(String repoRoot, String commitHash) throws Exception {
+        while (commitHash != null && !commitHash.isEmpty()) {
+            CommitObj commit = ObjectHasherCompressor.loadCommitObj(commitHash, repoRoot);
+            if (commit == null) {
+                break;
+            }
 
-            // Print commit info
             System.out.println(YELLOW + "commit " + commit.getObjectHash() + RESET);
-            System.out.println("Author: " + commit.author.substring(7));
+            if (commit.author != null) {
+                String authorDisplay = commit.author.startsWith("author ")
+                        ? commit.author.substring(7)
+                        : commit.author;
+                System.out.println("Author: " + authorDisplay);
+            }
             System.out.println();
             System.out.println("    " + commit.commitMessage);
             System.out.println();
 
-            // Move to parent commit
             commitHash = commit.parent;
         }
     }
-
-    // ANSI color codes
-    private static final String YELLOW = "\u001B[33m";
-    private static final String RESET = "\u001B[0m";
 }

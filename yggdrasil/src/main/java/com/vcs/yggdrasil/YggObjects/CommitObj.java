@@ -3,7 +3,9 @@ package com.vcs.yggdrasil.YggObjects;
 import com.vcs.yggdrasil.Helpers.ConfigReader;
 import com.vcs.yggdrasil.Helpers.ObjectHasherCompressor;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.Map;
 
 public class CommitObj implements YggObject {
     public String tree;
@@ -20,72 +22,100 @@ public class CommitObj implements YggObject {
     }
 
     public CommitObj(String tree, String parent, String commitMessage) throws Exception {
-        this(tree, parent, null, commitMessage);
+        this(tree, parent, null, commitMessage, System.getProperty("user.dir"));
     }
 
     public CommitObj(String tree, String parent, String mergeparent, String commitMessage) throws Exception {
+        this(tree, parent, mergeparent, commitMessage, System.getProperty("user.dir"));
+    }
+
+    public CommitObj(String tree, String parent, String mergeparent, String commitMessage, String repoRoot) throws Exception {
         this.tree = tree;
         this.parent = parent;
         this.mergeparent = mergeparent;
         this.commitMessage = commitMessage;
-        this.commitContent = initializeCommitInfo(tree, parent, mergeparent, commitMessage);
+        this.commitContent = initializeCommitInfo(tree, parent, mergeparent, commitMessage, repoRoot);
         this.objectHash = ObjectHasherCompressor.objectToSha1(this);
     }
 
     public CommitObj(String commitContent, String commitHashFromFile, boolean fromFile) throws Exception {
-        this.commitContent = commitContent;
-        String[] lines = commitContent.split("\n");
+        String contentToParse = commitContent;
+        if (fromFile && contentToParse.contains("\0")) {
+            contentToParse = contentToParse.substring(contentToParse.indexOf('\0') + 1);
+        }
+        this.commitContent = contentToParse;
+        String[] lines = contentToParse.split("\n");
         StringBuilder tempCommitMessage = new StringBuilder();
-        boolean messageStarted = false;
+        boolean inHeaders = true;
         for (String line : lines) {
-            if (line.startsWith("tree ")) {
-                this.tree = line.substring(5);
-            } else if (line.startsWith("parent ")) {
-                this.parent = line.substring(7);
-            } else if (line.startsWith("author ")) {
-                this.author = line;
-            } else if (line.startsWith("committer ")) {
-                this.committer = line;
-            } else {
-                if (messageStarted) {
-                    tempCommitMessage.append(line).append("\n");
-                } else if (!line.trim().isEmpty()) {
-                    messageStarted = true;
+            if (inHeaders) {
+                if (line.startsWith("tree ")) {
+                    this.tree = line.substring(5).trim();
+                } else if (line.startsWith("parent ")) {
+                    String p = line.substring(7).trim();
+                    if (this.parent == null) {
+                        this.parent = p;
+                    } else {
+                        this.mergeparent = p;
+                    }
+                } else if (line.startsWith("author ")) {
+                    this.author = line;
+                } else if (line.startsWith("committer ")) {
+                    this.committer = line;
+                } else if (line.trim().isEmpty()) {
+                    inHeaders = false;
+                } else {
+                    // Legacy commits where message directly followed committer without blank line
+                    inHeaders = false;
                     tempCommitMessage.append(line).append("\n");
                 }
+            } else {
+                tempCommitMessage.append(line).append("\n");
             }
         }
         this.commitMessage = tempCommitMessage.toString().trim();
         this.objectHash = commitHashFromFile;
     }
 
-    private String initializeCommitInfo(String... strings) {
-        String time = String.format("%d %tz", new Date().getTime() / 1000, new Date());
-        // String userInfo =  //ConfigReader.ReadUserConfig().get("name") + " " + ConfigReader.ReadUserConfig().get("email");
-        this.author = "author " + "Pratyush Landekar" + " " + time;
-        this.committer = "committer " + "Pratyush Landekar" + " " + time;
+    private String initializeCommitInfo(String treeHash, String parentHash, String mergeParentHash, String message, String repoRoot) {
+        Date now = new Date();
+        String time = String.format("%d %tz", now.getTime() / 1000, now);
+        Map<String, String> userConfig = ConfigReader.ReadUserConfig(repoRoot);
+        String name = userConfig.getOrDefault("name", "Pratyush Landekar");
+        String email = userConfig.getOrDefault("email", "pratyushlandekar103@gmail.com");
 
-        String[] argTypes = { "tree", "parent", "parent", "" };
+        this.author = "author " + name + " <" + email + "> " + time;
+        this.committer = "committer " + name + " <" + email + "> " + time;
+
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < strings.length; i++) {
-            if (strings[i] != null) {
-                sb.append(argTypes[i]).append(" ").append(strings[i]).append("\n");
-            }
+        if (treeHash != null) {
+            sb.append("tree ").append(treeHash).append("\n");
         }
-        sb.append(author).append("\n").append(committer);
+        if (parentHash != null) {
+            sb.append("parent ").append(parentHash).append("\n");
+        }
+        if (mergeParentHash != null) {
+            sb.append("parent ").append(mergeParentHash).append("\n");
+        }
+        sb.append(this.author).append("\n");
+        sb.append(this.committer).append("\n\n");
+        if (message != null) {
+            sb.append(message).append("\n");
+        }
 
         return sb.toString();
     }
 
     public byte[] getHeader() {
-        String header = "commit " + commitContent.length() + "\0";
-        return header.getBytes();
+        byte[] bodyBytes = commitContent.getBytes(StandardCharsets.UTF_8);
+        String header = "commit " + bodyBytes.length + "\0";
+        return header.getBytes(StandardCharsets.UTF_8);
     }
 
     @Override
     public byte[] getByteArray() {
         byte[] header = getHeader();
-        byte[] content = commitContent.getBytes();
+        byte[] content = commitContent.getBytes(StandardCharsets.UTF_8);
         byte[] result = new byte[header.length + content.length];
         System.arraycopy(header, 0, result, 0, header.length);
         System.arraycopy(content, 0, result, header.length, content.length);
@@ -93,7 +123,20 @@ public class CommitObj implements YggObject {
     }
 
     @Override
+    public String toString() {
+        return this.commitContent;
+    }
+
+    @Override
     public String getObjectHash() {
         return this.objectHash;
+    }
+
+    public String getTreeHash() {
+        return this.tree;
+    }
+
+    public String getCommit() {
+        return this.commitContent;
     }
 }
